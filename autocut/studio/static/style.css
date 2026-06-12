@@ -150,6 +150,23 @@ body {
   font-size: 11px; font-weight: 600;
   padding: 3px 10px; border-radius: 20px;
 }
+#live-sub {
+  position: absolute;
+  text-align: center;
+  color: #fff;
+  font-weight: 600;
+  line-height: 1.45;
+  padding: 0 4%;
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 5;
+  text-shadow:
+    0 0 3px rgba(10, 10, 10, 0.95),
+    0 1px 3px rgba(10, 10, 10, 0.95),
+    0 -1px 3px rgba(10, 10, 10, 0.95),
+    1px 0 3px rgba(10, 10, 10, 0.95),
+    -1px 0 3px rgba(10, 10, 10, 0.95);
+}
 #controls {
   flex: none; height: 56px;
   display: flex; align-items: center; gap: 16px;

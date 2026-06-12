@@ -36,11 +36,17 @@
     <section id="player-panel">
       <div id="video-wrap">
         <video id="video" src="/media" playsinline></video>
+        <div id="live-sub" class="hidden"></div>
         <div id="preview-badge" class="hidden">预览成片</div>
       </div>
       <div id="controls">
         <button id="btn-play" class="play-btn" title="播放/暂停 (空格)">▶</button>
         <span id="time-display">00:00 / 00:00</span>
+        <label class="switch">
+          <input type="checkbox" id="sub-toggle" checked>
+          <span class="slider"></span>
+          <span class="switch-label">字幕</span>
+        </label>
         <label class="switch">
           <input type="checkbox" id="preview-toggle" checked>
           <span class="slider"></span>

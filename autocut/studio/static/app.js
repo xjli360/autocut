@@ -13,6 +13,7 @@ const state = {
   undo: [],
   redo: [],
   preview: true,
+  showSubs: true,
   saveTimer: null,
   pollTimer: null,
 };
@@ -128,8 +129,38 @@ function tickPlayhead() {
     syncCurrentSentence();
     if (state.preview && !video.paused) skipDeleted();
     updateTimeDisplay();
+    updateLiveSub();
   }
   requestAnimationFrame(tickPlayhead);
+}
+
+function updateLiveSub() {
+  const el = $("#live-sub");
+  if (!state.showSubs || !state.segments.length) {
+    el.classList.add("hidden");
+    return;
+  }
+  const t = video.currentTime;
+  const seg = state.segments.find(
+    (s) => !s.deleted && t >= s.start && t < s.end
+  );
+  if (!seg) {
+    el.classList.add("hidden");
+    return;
+  }
+  if (el.textContent !== seg.text) el.textContent = seg.text;
+  // pin to the rendered video frame (the element letterboxes inside the wrap)
+  const r = video.getBoundingClientRect();
+  const w = $("#video-wrap").getBoundingClientRect();
+  if (r.height < 40) {
+    el.classList.add("hidden");
+    return;
+  }
+  el.style.left = `${r.left - w.left}px`;
+  el.style.width = `${r.width}px`;
+  el.style.bottom = `${w.bottom - r.bottom + r.height * 0.05}px`;
+  el.style.fontSize = `${Math.max(13, r.height * 0.045)}px`;
+  el.classList.remove("hidden");
 }
 
 function skipDeleted() {
@@ -320,6 +351,8 @@ function openExport() {
   $("#export-done").classList.add("hidden");
   $("#export-error").classList.add("hidden");
   $("#btn-export-start").disabled = false;
+  // burning follows the player's subtitle toggle: WYSIWYG
+  $("#burn-subs").checked = state.showSubs;
 }
 
 async function startExport() {
@@ -402,6 +435,10 @@ function bindEvents() {
     state.preview = e.target.checked;
     $("#preview-badge").classList.toggle("hidden", !state.preview);
     updateTimeDisplay();
+  });
+
+  $("#sub-toggle").addEventListener("change", (e) => {
+    state.showSubs = e.target.checked;
   });
 
   $("#timeline").addEventListener("click", (e) => {
