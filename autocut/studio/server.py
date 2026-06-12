@@ -579,27 +579,63 @@ def create_app(project: Project):
     app = FastAPI(title="AutoCut Studio")
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+    # the open project is swappable at runtime via /api/import
+    holder = {"project": project}
+
+    def P() -> Project:
+        return holder["project"]
+
     @app.get("/")
     def index():
         return FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
     @app.get("/api/project")
     def get_project():
-        return JSONResponse(project.snapshot())
+        return JSONResponse(P().snapshot())
 
     @app.get("/api/status")
     def get_status():
-        return JSONResponse(project.status())
+        return JSONResponse(P().status())
 
     @app.post("/api/transcribe")
     def post_transcribe():
-        project.start_transcribe()
+        P().start_transcribe()
         return {"ok": True}
+
+    @app.post("/api/import")
+    def post_import(path: Optional[str] = None):
+        """Open another media file. Without an explicit path, show the native
+        macOS file picker (the server runs on the user's machine)."""
+        if not path and sys.platform == "darwin":
+            out = subprocess.run(
+                [
+                    "osascript",
+                    "-e",
+                    'tell application "System Events" to activate',
+                    "-e",
+                    'POSIX path of (choose file with prompt '
+                    '"选择要剪辑的视频或音频" of type {"public.movie", "public.audio"})',
+                ],
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+            if out.returncode != 0:  # user cancelled the dialog
+                return {"cancelled": True}
+            path = out.stdout.strip()
+        if not path:
+            return JSONResponse({"error": "未提供文件路径"}, status_code=400)
+        try:
+            holder["project"] = Project(path, device=P().device)
+        except Exception as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+        logging.info(f"Imported {path}")
+        return {"ok": True, "name": os.path.basename(path)}
 
     @app.put("/api/segments")
     async def put_segments(request: Request):
         body = await request.json()
-        project.update_deleted(
+        P().update_deleted(
             body.get("deleted_ids", []), body.get("deleted_gaps")
         )
         return {"ok": True}
@@ -607,18 +643,18 @@ def create_app(project: Project):
     @app.put("/api/style")
     async def put_style(request: Request):
         body = await request.json()
-        project.update_style(body or {})
+        P().update_style(body or {})
         return {"ok": True}
 
     @app.post("/api/export")
     async def post_export(request: Request):
         body = await request.json()
-        project.start_export(body or {})
+        P().start_export(body or {})
         return {"ok": True}
 
     @app.post("/api/reveal")
     def post_reveal():
-        output = project.export.get("output")
+        output = P().export.get("output")
         if output and sys.platform == "darwin":
             subprocess.run(["open", "-R", output])
         return {"ok": True}
@@ -638,7 +674,7 @@ def create_app(project: Project):
 
     @app.get("/media")
     def media(request: Request):
-        path = project.video_path
+        path = P().video_path
         size = os.path.getsize(path)
         ctype = mimetypes.guess_type(path)[0] or "video/mp4"
         range_header = request.headers.get("range")
@@ -646,7 +682,11 @@ def create_app(project: Project):
             return StreamingResponse(
                 iter_file(path, 0, size - 1),
                 media_type=ctype,
-                headers={"Accept-Ranges": "bytes", "Content-Length": str(size)},
+                headers={
+                    "Accept-Ranges": "bytes",
+                    "Content-Length": str(size),
+                    "Cache-Control": "no-store",
+                },
             )
         m = re.match(r"bytes=(\d*)-(\d*)", range_header)
         start = int(m.group(1)) if m.group(1) else 0
@@ -660,6 +700,7 @@ def create_app(project: Project):
                 "Content-Range": f"bytes {start}-{end}/{size}",
                 "Accept-Ranges": "bytes",
                 "Content-Length": str(end - start + 1),
+                "Cache-Control": "no-store",
             },
         )
 

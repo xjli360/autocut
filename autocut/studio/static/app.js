@@ -697,6 +697,25 @@ function bindEvents() {
     setTimeout(pollAsr, 800);
   });
 
+  $("#btn-import").addEventListener("click", async () => {
+    const btn = $("#btn-import");
+    btn.disabled = true;
+    btn.textContent = "选择中…";
+    try {
+      const res = await api("POST", "/api/import");
+      if (res.ok) {
+        location.reload(); // re-init everything against the new project
+        return;
+      }
+      if (res.error) toast(`导入失败：${res.error}`);
+    } catch (err) {
+      toast(`导入失败：${err}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "导入";
+    }
+  });
+
   $("#btn-export").addEventListener("click", openExport);
   $("#btn-export-close").addEventListener("click", () =>
     $("#overlay-export").classList.add("hidden")

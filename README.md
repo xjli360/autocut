@@ -29,6 +29,7 @@ autocut --studio 你的视频.mp4
 
 | data-tag | 元素 | 行为函数（app.js） |
 |---|---|---|
+| `import-open` | 顶栏「导入」按钮（原生文件选择框换视频） | `POST /api/import` → reload |
 | `export-open` | 顶栏「导出」按钮 | `openExport` |
 | `search-box` | 文稿搜索框 | `runSearch` |
 | `undo` / `redo` | 撤销 / 重做 | `undo` / `redo` |
