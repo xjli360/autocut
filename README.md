@@ -23,6 +23,29 @@ autocut --studio 你的视频.mp4
 
 命令行老流程现在默认也走 Paraformer（`autocut -t 视频.mp4`）。原 whisper 后端改为可选依赖：`pip install -e '.[whisper]'` 后用 `--whisper-mode whisper`（注：openai-whisper 官方包在 setuptools≥81 下构建会失败，必要时先 `pip install setuptools<81`）。
 
+### UI 标签索引（data-tag）
+
+页面上所有交互元素都带 `data-tag` 属性，改样式/交互时用它定位（DevTools 搜索，或代码里 `grep -r 'data-tag="xxx"' autocut/studio/`）。HTML 在 `static/index.html`，行为在 `static/app.js`，样式在 `static/style.css`，接口在 `studio/server.py`。
+
+| data-tag | 元素 | 行为函数（app.js） |
+|---|---|---|
+| `export-open` | 顶栏「导出」按钮 | `openExport` |
+| `search-box` | 文稿搜索框 | `runSearch` |
+| `undo` / `redo` | 撤销 / 重做 | `undo` / `redo` |
+| `delete-selected` / `restore-selected` | 删除 / 恢复所选 | `applyOp` |
+| `transcript-area` | 文稿区（句子+停顿） | click/dblclick 委托 |
+| `sentence`（动态） | 文稿里的句子 | `clickSentence` |
+| `pause-chip`（动态） | 文稿里的停顿 ⏸ chip | `applyGapOp` |
+| `play-toggle` / `time-display` | 播放键 / 时间码 | `togglePlay` |
+| `subtitle-pill` / `subtitle-toggle` / `subtitle-style-open` | 字幕胶囊 [字幕\|Aa] | `toggleStylePanel` |
+| `style-panel` 及 `style-*` | 字幕样式面板各控件 | `applyStyle` / `syncStylePanel` |
+| `preview-mode-switch` | 「预览成片」开关 | `skipDeleted` |
+| `live-subtitle` | 画面上的实时字幕层 | `updateLiveSub` |
+| `timeline-strip` / `timeline-blocks` / `playhead` | 底部时间轴 | `renderTimeline` + blocks 委托 |
+| `timeline-sentence` / `timeline-gap`（动态） | 时间轴句子块 / 停顿块 | 单击选中定位，双击删/恢复 |
+| `transcribe-modal` / `transcribe-start` | 识别弹窗 / 开始识别 | `pollAsr` |
+| `export-modal` / `export-*` | 导出弹窗各控件 | `startExport` / `pollExport` |
+
 **2024.10.05更新**：支持 `large-v3-turbo` [模型](https://github.com/openai/whisper/discussions/2363)，提供更快的转录速度。
 
 ```shell

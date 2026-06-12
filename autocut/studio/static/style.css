@@ -140,6 +140,31 @@ body {
 }
 .sentence:hover .tc { opacity: 1; }
 
+/* silence gap chips inside the transcript */
+.pause {
+  display: inline-block;
+  margin: 0 2px;
+  padding: 0 8px;
+  font-size: 11px;
+  line-height: 1.8;
+  vertical-align: 2px;
+  color: var(--muted);
+  background: var(--panel-2);
+  border: 1px dashed var(--border);
+  border-radius: 11px;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.1s, border-color 0.1s;
+}
+.pause:hover { color: var(--text); border-color: var(--accent); }
+.pause.deleted {
+  color: var(--danger);
+  text-decoration: line-through;
+  border-color: rgba(255, 94, 94, 0.45);
+  background: rgba(255, 94, 94, 0.08);
+  opacity: 0.75;
+}
+
 /* ---------- player ---------- */
 #player-panel { flex: 1; display: flex; flex-direction: column; min-width: 0; background: #0a0a0d; }
 #video-wrap { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; position: relative; }
@@ -315,9 +340,23 @@ body {
   background: linear-gradient(180deg, #1e7d6b, #16584d);
   border-radius: 3px;
   min-width: 1px;
+  cursor: pointer;
 }
+.block:hover { filter: brightness(1.25); }
 .block.deleted {
   background: repeating-linear-gradient(-45deg, #3a2026, #3a2026 4px, #2c181d 4px, #2c181d 8px);
+}
+.block.gap {
+  top: 25%; bottom: 25%;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+.block.gap.deleted {
+  background: repeating-linear-gradient(-45deg, rgba(255, 94, 94, 0.35), rgba(255, 94, 94, 0.35) 3px, rgba(255, 94, 94, 0.12) 3px, rgba(255, 94, 94, 0.12) 6px);
+}
+.block.sel {
+  box-shadow: 0 0 0 1.5px var(--accent);
+  z-index: 2;
 }
 #playhead {
   position: absolute; top: 0; bottom: 0; left: 0;

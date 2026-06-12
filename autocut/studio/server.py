@@ -91,6 +91,9 @@ class Project:
         )
         self.sidecar = self.video_path + ".autocut.json"
         self.segments: List[Dict[str, Any]] = []
+        # keys of silence gaps cut by the user: "head", "tail", or the id of
+        # the sentence the gap follows (gap times derive from segments)
+        self.deleted_gaps: List[str] = []
         self.sub_style: Dict[str, Any] = dict(DEFAULT_SUB_STYLE)
         self.asr = {"state": "idle", "error": None, "elapsed": 0.0}
         self.export = {"state": "idle", "progress": 0.0, "output": None, "error": None}
@@ -106,6 +109,7 @@ class Project:
             with open(self.sidecar, encoding="utf-8") as f:
                 data = json.load(f)
             self.segments = data.get("segments", [])
+            self.deleted_gaps = [str(k) for k in data.get("deleted_gaps", [])]
             self.sub_style.update(data.get("sub_style", {}))
             if self.segments:
                 self.asr["state"] = "done"
@@ -118,6 +122,7 @@ class Project:
             "media": os.path.basename(self.video_path),
             "duration": self.duration,
             "segments": self.segments,
+            "deleted_gaps": self.deleted_gaps,
             "sub_style": self.sub_style,
         }
         with open(self.sidecar, "w", encoding="utf-8") as f:
@@ -171,11 +176,15 @@ class Project:
                     "elapsed": time.time() - tic,
                 }
 
-    def update_deleted(self, deleted_ids: List[int]):
+    def update_deleted(
+        self, deleted_ids: List[int], deleted_gaps: Optional[List[str]] = None
+    ):
         deleted = set(deleted_ids)
         with self._lock:
             for s in self.segments:
                 s["deleted"] = s["id"] in deleted
+            if deleted_gaps is not None:
+                self.deleted_gaps = [str(k) for k in deleted_gaps]
             self._save_sidecar()
 
     def update_style(self, style: Dict[str, Any]):
@@ -186,6 +195,43 @@ class Project:
             self._save_sidecar()
 
     # ---------- cutting math ----------
+
+    def _gap_ranges(self) -> Dict[str, Tuple[float, float]]:
+        """Silence gaps keyed by the sentence they follow ('head'/'tail' for
+        the leading/trailing silence)."""
+        gaps: Dict[str, Tuple[float, float]] = {}
+        segs = sorted(self.segments, key=lambda s: s["start"])
+        if not segs:
+            return gaps
+        if segs[0]["start"] > 0.05:
+            gaps["head"] = (0.0, segs[0]["start"])
+        for a, b in zip(segs, segs[1:]):
+            if b["start"] - a["end"] > 0.05:
+                gaps[str(a["id"])] = (a["end"], b["start"])
+        if self.duration - segs[-1]["end"] > 0.05:
+            gaps["tail"] = (segs[-1]["end"], self.duration)
+        return gaps
+
+    @staticmethod
+    def _subtract_ranges(
+        ranges: List[List[float]], cuts: List[Tuple[float, float]]
+    ) -> List[List[float]]:
+        out = []
+        for s, e in ranges:
+            pieces = [[s, e]]
+            for cs, ce in cuts:
+                nxt = []
+                for ps, pe in pieces:
+                    if ce <= ps or cs >= pe:
+                        nxt.append([ps, pe])
+                        continue
+                    if cs > ps:
+                        nxt.append([ps, cs])
+                    if ce < pe:
+                        nxt.append([ce, pe])
+                pieces = nxt
+            out.extend(pieces)
+        return out
 
     def keep_ranges(
         self, mode: str = "precise", bridge_gap: float = 1.0, pad: float = 0.25
@@ -228,6 +274,11 @@ class Project:
                 cursor = max(cursor, e)
             if cursor < self.duration:
                 result.append([cursor, self.duration])
+
+        gap_ranges = self._gap_ranges()
+        gap_cuts = [gap_ranges[k] for k in self.deleted_gaps if k in gap_ranges]
+        if gap_cuts:
+            result = self._subtract_ranges(result, gap_cuts)
         return [(s, e) for s, e in result if e - s > 0.05]
 
     # ---------- export ----------
@@ -508,6 +559,7 @@ class Project:
                 "duration": self.duration,
                 "has_audio": self.has_audio,
                 "segments": self.segments,
+                "deleted_gaps": list(self.deleted_gaps),
                 "sub_style": dict(self.sub_style),
                 "fonts": list(FONT_PATHS),
                 "asr": dict(self.asr),
@@ -547,7 +599,9 @@ def create_app(project: Project):
     @app.put("/api/segments")
     async def put_segments(request: Request):
         body = await request.json()
-        project.update_deleted(body.get("deleted_ids", []))
+        project.update_deleted(
+            body.get("deleted_ids", []), body.get("deleted_gaps")
+        )
         return {"ok": True}
 
     @app.put("/api/style")

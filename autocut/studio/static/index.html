@@ -7,58 +7,63 @@
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+<!--
+  data-tag 索引：每个交互元素都带 data-tag，方便定位修改。
+  完整映射表见仓库 README「UI 标签索引」。浏览器里可用
+  document.querySelector('[data-tag="xxx"]') 或 DevTools 搜索定位。
+-->
 <div id="app">
-  <header id="topbar">
-    <div class="logo"><span class="logo-mark">✂</span>AutoCut<span class="logo-sub">Studio</span></div>
-    <div id="filename" class="filename"></div>
+  <header id="topbar" data-tag="topbar">
+    <div class="logo" data-tag="logo"><span class="logo-mark">✂</span>AutoCut<span class="logo-sub">Studio</span></div>
+    <div id="filename" class="filename" data-tag="filename"></div>
     <div class="topbar-right">
-      <span id="save-state"></span>
-      <button id="btn-export" class="btn primary" disabled>导出</button>
+      <span id="save-state" data-tag="save-state"></span>
+      <button id="btn-export" class="btn primary" data-tag="export-open" disabled>导出</button>
     </div>
   </header>
 
   <main id="main">
-    <section id="transcript-panel">
+    <section id="transcript-panel" data-tag="transcript-panel">
       <div class="panel-head">
         <span class="panel-title">文稿</span>
-        <input id="search" placeholder="搜索文稿…" autocomplete="off">
+        <input id="search" data-tag="search-box" placeholder="搜索文稿…" autocomplete="off">
         <div class="panel-tools">
-          <button id="btn-undo" class="btn-icon" title="撤销 (⌘Z)" disabled>⤺</button>
-          <button id="btn-redo" class="btn-icon" title="重做 (⇧⌘Z)" disabled>⤻</button>
-          <button id="btn-del" class="btn-icon danger" title="删除所选 (Delete)">删除</button>
-          <button id="btn-restore" class="btn-icon" title="恢复所选">恢复</button>
+          <button id="btn-undo" class="btn-icon" data-tag="undo" title="撤销 (⌘Z)" disabled>⤺</button>
+          <button id="btn-redo" class="btn-icon" data-tag="redo" title="重做 (⇧⌘Z)" disabled>⤻</button>
+          <button id="btn-del" class="btn-icon danger" data-tag="delete-selected" title="删除所选 (Delete)">删除</button>
+          <button id="btn-restore" class="btn-icon" data-tag="restore-selected" title="恢复所选">恢复</button>
         </div>
       </div>
-      <div id="transcript" tabindex="0"></div>
-      <div id="transcript-hint">单击选中并定位 · Shift 连选 · 双击从该句播放 · Delete 删除 · ⌘Z 撤销</div>
+      <div id="transcript" data-tag="transcript-area" tabindex="0"></div>
+      <div id="transcript-hint" data-tag="transcript-hint">单击选中并定位 · Shift 连选 · 双击播放 · Delete 删除 · ⏸停顿点击剪/留 · ⌘Z 撤销</div>
     </section>
 
-    <section id="player-panel">
-      <div id="video-wrap">
-        <video id="video" src="/media" playsinline></video>
-        <div id="live-sub" class="hidden"></div>
-        <div id="preview-badge" class="hidden">预览成片</div>
+    <section id="player-panel" data-tag="player-panel">
+      <div id="video-wrap" data-tag="video-wrap">
+        <video id="video" data-tag="video" src="/media" playsinline></video>
+        <div id="live-sub" data-tag="live-subtitle" class="hidden"></div>
+        <div id="preview-badge" data-tag="preview-badge" class="hidden">预览成片</div>
       </div>
-      <div id="controls">
-        <button id="btn-play" class="play-btn" title="播放/暂停 (空格)">▶</button>
-        <span id="time-display">00:00 / 00:00</span>
-        <div id="sub-control" class="seg">
-          <button id="sub-toggle-btn" class="seg-main" title="显示/隐藏字幕"><i class="dot"></i>字幕</button>
-          <button id="btn-style" class="seg-aux" title="字幕样式">Aa</button>
+      <div id="controls" data-tag="player-controls">
+        <button id="btn-play" class="play-btn" data-tag="play-toggle" title="播放/暂停 (空格)">▶</button>
+        <span id="time-display" data-tag="time-display">00:00 / 00:00</span>
+        <div id="sub-control" class="seg" data-tag="subtitle-pill">
+          <button id="sub-toggle-btn" class="seg-main" data-tag="subtitle-toggle" title="显示/隐藏字幕"><i class="dot"></i>字幕</button>
+          <button id="btn-style" class="seg-aux" data-tag="subtitle-style-open" title="字幕样式">Aa</button>
         </div>
-        <label class="switch">
+        <label class="switch" data-tag="preview-mode-switch">
           <input type="checkbox" id="preview-toggle" checked>
           <span class="slider"></span>
           <span class="switch-label">预览成片</span>
         </label>
       </div>
 
-      <div id="style-panel" class="hidden">
+      <div id="style-panel" data-tag="style-panel" class="hidden">
         <div class="sp-caret"></div>
         <div class="sp-title">字幕样式 <span class="sp-note">预览与导出同步生效</span></div>
         <div class="sp-row">
           <label>字体</label>
-          <select id="ss-font">
+          <select id="ss-font" data-tag="style-font-select">
             <option value="PingFang SC">苹方</option>
             <option value="Hiragino Sans GB">冬青黑体</option>
             <option value="Songti SC">宋体</option>
@@ -68,13 +73,13 @@
         </div>
         <div class="sp-row">
           <label>字号</label>
-          <input type="range" id="ss-size" min="2" max="10" step="0.25">
+          <input type="range" id="ss-size" data-tag="style-size-slider" min="2" max="10" step="0.25">
           <span class="sp-val" id="ss-size-val"></span>
         </div>
         <div class="sp-row">
           <label>颜色</label>
-          <input type="color" id="ss-color">
-          <span class="swatches" id="ss-swatches">
+          <input type="color" id="ss-color" data-tag="style-color-picker">
+          <span class="swatches" id="ss-swatches" data-tag="style-color-swatches">
             <i style="background:#ffffff" data-c="#ffffff"></i>
             <i style="background:#ffe14d" data-c="#ffe14d"></i>
             <i style="background:#00e0b8" data-c="#00e0b8"></i>
@@ -84,72 +89,72 @@
         </div>
         <div class="sp-row">
           <label>描边</label>
-          <input type="color" id="ss-stroke">
+          <input type="color" id="ss-stroke" data-tag="style-stroke-picker">
         </div>
         <div class="sp-row">
           <label>位置</label>
-          <input type="range" id="ss-posv" min="2" max="80" step="1">
+          <input type="range" id="ss-posv" data-tag="style-position-slider" min="2" max="80" step="1">
           <span class="sp-val" id="ss-posv-val"></span>
         </div>
-        <div class="sp-actions"><button id="ss-reset" class="btn ghost">恢复默认</button></div>
+        <div class="sp-actions"><button id="ss-reset" class="btn ghost" data-tag="style-reset">恢复默认</button></div>
       </div>
     </section>
   </main>
 
-  <footer id="bottom">
-    <div id="timeline">
-      <div id="blocks"></div>
-      <div id="playhead"></div>
+  <footer id="bottom" data-tag="bottom-bar">
+    <div id="timeline" data-tag="timeline-strip">
+      <div id="blocks" data-tag="timeline-blocks"></div>
+      <div id="playhead" data-tag="playhead"></div>
     </div>
-    <div id="statusbar">
-      <span id="stat-duration"></span>
-      <span id="stat-deleted"></span>
+    <div id="statusbar" data-tag="statusbar">
+      <span id="stat-duration" data-tag="stat-duration"></span>
+      <span id="stat-deleted" data-tag="stat-deleted"></span>
       <span class="spacer"></span>
-      <span id="stat-model">Paraformer · 本地识别</span>
+      <span id="stat-model" data-tag="stat-model">Paraformer · 本地识别</span>
     </div>
   </footer>
 
-  <div id="overlay-transcribe" class="overlay hidden">
+  <div id="overlay-transcribe" data-tag="transcribe-modal" class="overlay hidden">
     <div class="card">
       <h2>识别文稿</h2>
       <p class="card-desc">用 FunASR Paraformer 在本地把语音识别成文字，<br>之后删除文字即可剪辑视频。首次运行需下载模型（约 1GB）。</p>
-      <button id="btn-transcribe" class="btn primary big">开始识别</button>
-      <div id="asr-progress" class="progress-row hidden">
+      <button id="btn-transcribe" class="btn primary big" data-tag="transcribe-start">开始识别</button>
+      <div id="asr-progress" class="progress-row hidden" data-tag="transcribe-progress">
         <div class="spinner"></div><span id="asr-msg">正在加载模型…</span>
       </div>
-      <p id="asr-error" class="error hidden"></p>
+      <p id="asr-error" class="error hidden" data-tag="transcribe-error"></p>
     </div>
   </div>
 
-  <div id="overlay-export" class="overlay hidden">
+  <div id="overlay-export" data-tag="export-modal" class="overlay hidden">
     <div class="card">
       <h2>导出成片</h2>
       <div class="field">
-        <label class="radio"><input type="radio" name="mode" value="precise" checked>
+        <label class="radio" data-tag="export-mode-precise"><input type="radio" name="mode" value="precise" checked>
           <span><b>按文稿精确剪</b><small>只移除被删句子对应的画面，其余原样保留</small></span></label>
-        <label class="radio"><input type="radio" name="mode" value="compact">
+        <label class="radio" data-tag="export-mode-compact"><input type="radio" name="mode" value="compact">
           <span><b>紧凑模式</b><small>同时剪掉句子之间的长停顿，更适合口播</small></span></label>
       </div>
-      <div class="field inline" id="gap-field" style="display:none">
+      <div class="field inline" id="gap-field" data-tag="export-gap-threshold" style="display:none">
         <label>停顿超过 <input id="bridge-gap" type="number" value="1.0" step="0.1" min="0.2"> 秒时剪掉</label>
       </div>
       <div class="field">
-        <label class="check"><input type="checkbox" id="burn-subs" checked> 一键字幕：把文稿烧录进画面（白字黑边 · 底部居中）</label>
-        <label class="check"><input type="checkbox" id="export-srt" checked> 同时导出字幕文件（.srt，时间码已对齐成片）</label>
+        <label class="check" data-tag="export-burn-subs"><input type="checkbox" id="burn-subs" checked> 一键字幕：把文稿烧录进画面（白字黑边 · 底部居中）</label>
+        <label class="check" data-tag="export-srt-file"><input type="checkbox" id="export-srt" checked> 同时导出字幕文件（.srt，时间码已对齐成片）</label>
       </div>
-      <div id="export-progress" class="hidden">
+      <div id="export-progress" class="hidden" data-tag="export-progress">
         <div class="bar"><div id="export-bar-fill"></div></div>
         <span id="export-msg"></span>
       </div>
-      <div id="export-done" class="hidden">
+      <div id="export-done" class="hidden" data-tag="export-done">
         <p class="ok">✓ 导出完成</p>
-        <p id="export-path" class="path"></p>
-        <button id="btn-reveal" class="btn">在 Finder 中显示</button>
+        <p id="export-path" class="path" data-tag="export-path"></p>
+        <button id="btn-reveal" class="btn" data-tag="export-reveal">在 Finder 中显示</button>
       </div>
-      <p id="export-error" class="error hidden"></p>
+      <p id="export-error" class="error hidden" data-tag="export-error"></p>
       <div class="card-actions">
-        <button id="btn-export-close" class="btn ghost">关闭</button>
-        <button id="btn-export-start" class="btn primary">开始导出</button>
+        <button id="btn-export-close" class="btn ghost" data-tag="export-close">关闭</button>
+        <button id="btn-export-start" class="btn primary" data-tag="export-start">开始导出</button>
       </div>
     </div>
   </div>

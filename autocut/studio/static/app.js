@@ -4,10 +4,13 @@
 const $ = (sel) => document.querySelector(sel);
 const video = $("#video");
 
+const MIN_GAP_SHOW = 0.3; // gaps shorter than this are not worth cutting
+
 const state = {
   name: "",
   duration: 0,
   segments: [], // {id, start, end, text, deleted}
+  deletedGaps: new Set(), // "head" | "tail" | id of the sentence before the gap
   selected: new Set(),
   lastClicked: null,
   undo: [],
@@ -37,11 +40,37 @@ function fmt(t) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+function gapList() {
+  const segs = state.segments;
+  const gaps = [];
+  if (!segs.length) return gaps;
+  if (segs[0].start > MIN_GAP_SHOW) {
+    gaps.push({ key: "head", start: 0, end: segs[0].start });
+  }
+  for (let i = 0; i < segs.length - 1; i++) {
+    if (segs[i + 1].start - segs[i].end > MIN_GAP_SHOW) {
+      gaps.push({
+        key: String(segs[i].id),
+        start: segs[i].end,
+        end: segs[i + 1].start,
+      });
+    }
+  }
+  const last = segs[segs.length - 1];
+  if (state.duration - last.end > MIN_GAP_SHOW) {
+    gaps.push({ key: "tail", start: last.end, end: state.duration });
+  }
+  return gaps;
+}
+
 function mergedDeletedRanges() {
   const spans = state.segments
     .filter((s) => s.deleted)
-    .map((s) => [s.start, s.end])
-    .sort((a, b) => a[0] - b[0]);
+    .map((s) => [s.start, s.end]);
+  for (const g of gapList()) {
+    if (state.deletedGaps.has(g.key)) spans.push([g.start, g.end]);
+  }
+  spans.sort((a, b) => a[0] - b[0]);
   const merged = [];
   for (const [a, b] of spans) {
     if (merged.length && a <= merged[merged.length - 1][1] + 0.01) {
@@ -78,13 +107,30 @@ async function api(method, url, body) {
 
 /* ---------- transcript rendering ---------- */
 
+function pauseChip(g) {
+  const el = document.createElement("span");
+  el.className = "pause";
+  el.dataset.gap = g.key;
+  el.dataset.tag = "pause-chip";
+  const dur = (g.end - g.start).toFixed(1);
+  el.title = `停顿 ${dur} 秒 · 点击剪掉/恢复`;
+  el.textContent = `⏸ ${dur}s`;
+  return el;
+}
+
 function renderTranscript() {
   const root = $("#transcript");
   root.innerHTML = "";
+  const gapAfter = new Map(gapList().map((g) => [g.key, g]));
+  if (gapAfter.has("head")) {
+    root.appendChild(pauseChip(gapAfter.get("head")));
+    root.appendChild(document.createTextNode(" "));
+  }
   for (const seg of state.segments) {
     const el = document.createElement("span");
     el.className = "sentence";
     el.dataset.id = seg.id;
+    el.dataset.tag = "sentence";
     const tc = document.createElement("span");
     tc.className = "tc";
     tc.textContent = fmt(seg.start);
@@ -92,6 +138,14 @@ function renderTranscript() {
     el.appendChild(document.createTextNode(seg.text));
     root.appendChild(el);
     root.appendChild(document.createTextNode(" "));
+    const g = gapAfter.get(String(seg.id));
+    if (g) {
+      root.appendChild(pauseChip(g));
+      root.appendChild(document.createTextNode(" "));
+    }
+  }
+  if (gapAfter.has("tail")) {
+    root.appendChild(pauseChip(gapAfter.get("tail")));
   }
   refreshClasses();
 }
@@ -103,6 +157,9 @@ function refreshClasses() {
     el.classList.toggle("deleted", !!seg.deleted);
     el.classList.toggle("selected", state.selected.has(seg.id));
   }
+  for (const el of document.querySelectorAll(".pause")) {
+    el.classList.toggle("deleted", state.deletedGaps.has(el.dataset.gap));
+  }
   renderTimeline();
   renderStats();
   $("#btn-undo").disabled = state.undo.length === 0;
@@ -111,10 +168,13 @@ function refreshClasses() {
 
 function renderStats() {
   const deletedCount = state.segments.filter((s) => s.deleted).length;
+  const gapCount = state.deletedGaps.size;
   $("#stat-duration").innerHTML =
     `原片 ${fmt(state.duration)} · 成片 <b>${fmt(outputDuration())}</b>`;
-  $("#stat-deleted").textContent =
-    deletedCount > 0 ? `已删 ${deletedCount} 句` : "";
+  const parts = [];
+  if (deletedCount) parts.push(`已删 ${deletedCount} 句`);
+  if (gapCount) parts.push(`${gapCount} 处停顿`);
+  $("#stat-deleted").textContent = parts.join(" · ");
 }
 
 /* ---------- timeline ---------- */
@@ -123,12 +183,32 @@ function renderTimeline() {
   const blocks = $("#blocks");
   blocks.innerHTML = "";
   if (!state.duration) return;
+  const place = (el, start, end) => {
+    el.style.left = `${(start / state.duration) * 100}%`;
+    el.style.width = `${((end - start) / state.duration) * 100}%`;
+    blocks.appendChild(el);
+  };
+  for (const g of gapList()) {
+    const el = document.createElement("div");
+    el.className =
+      "block gap" + (state.deletedGaps.has(g.key) ? " deleted" : "");
+    el.dataset.kind = "gap";
+    el.dataset.key = g.key;
+    el.dataset.tag = "timeline-gap";
+    el.title = `停顿 ${(g.end - g.start).toFixed(1)} 秒 · 双击剪掉/恢复`;
+    place(el, g.start, g.end);
+  }
   for (const seg of state.segments) {
     const el = document.createElement("div");
-    el.className = "block" + (seg.deleted ? " deleted" : "");
-    el.style.left = `${(seg.start / state.duration) * 100}%`;
-    el.style.width = `${((seg.end - seg.start) / state.duration) * 100}%`;
-    blocks.appendChild(el);
+    el.className =
+      "block" +
+      (seg.deleted ? " deleted" : "") +
+      (state.selected.has(seg.id) ? " sel" : "");
+    el.dataset.kind = "seg";
+    el.dataset.id = seg.id;
+    el.dataset.tag = "timeline-sentence";
+    el.title = `${seg.text}\n单击选中 · 双击删除/恢复`;
+    place(el, seg.start, seg.end);
   }
 }
 
@@ -320,19 +400,44 @@ function applyOp(ids, after) {
     changed = true;
   }
   if (!changed) return;
-  state.undo.push({ before, after });
+  state.undo.push({ kind: "seg", before, after });
   state.redo = [];
   state.selected.clear();
   refreshClasses();
   scheduleSave();
 }
 
+function applyGapOp(keys, after) {
+  const before = {};
+  let changed = false;
+  for (const key of keys) {
+    const cur = state.deletedGaps.has(key);
+    if (cur === after) continue;
+    before[key] = cur;
+    after ? state.deletedGaps.add(key) : state.deletedGaps.delete(key);
+    changed = true;
+  }
+  if (!changed) return;
+  state.undo.push({ kind: "gap", before, after });
+  state.redo = [];
+  refreshClasses();
+  scheduleSave();
+}
+
+function setGap(key, deleted) {
+  deleted ? state.deletedGaps.add(key) : state.deletedGaps.delete(key);
+}
+
 function undo() {
   const op = state.undo.pop();
   if (!op) return;
-  const byId = new Map(state.segments.map((s) => [s.id, s]));
-  for (const [id, was] of Object.entries(op.before)) {
-    byId.get(Number(id)).deleted = was;
+  if (op.kind === "gap") {
+    for (const [key, was] of Object.entries(op.before)) setGap(key, was);
+  } else {
+    const byId = new Map(state.segments.map((s) => [s.id, s]));
+    for (const [id, was] of Object.entries(op.before)) {
+      byId.get(Number(id)).deleted = was;
+    }
   }
   state.redo.push(op);
   refreshClasses();
@@ -342,9 +447,13 @@ function undo() {
 function redo() {
   const op = state.redo.pop();
   if (!op) return;
-  const byId = new Map(state.segments.map((s) => [s.id, s]));
-  for (const id of Object.keys(op.before)) {
-    byId.get(Number(id)).deleted = op.after;
+  if (op.kind === "gap") {
+    for (const key of Object.keys(op.before)) setGap(key, op.after);
+  } else {
+    const byId = new Map(state.segments.map((s) => [s.id, s]));
+    for (const id of Object.keys(op.before)) {
+      byId.get(Number(id)).deleted = op.after;
+    }
   }
   state.undo.push(op);
   refreshClasses();
@@ -356,7 +465,10 @@ function scheduleSave() {
   clearTimeout(state.saveTimer);
   state.saveTimer = setTimeout(async () => {
     const deleted_ids = state.segments.filter((s) => s.deleted).map((s) => s.id);
-    await api("PUT", "/api/segments", { deleted_ids });
+    await api("PUT", "/api/segments", {
+      deleted_ids,
+      deleted_gaps: [...state.deletedGaps],
+    });
     $("#save-state").textContent = "已自动保存";
   }, 500);
 }
@@ -489,6 +601,12 @@ function bindEvents() {
   const transcript = $("#transcript");
 
   transcript.addEventListener("click", (e) => {
+    const chip = e.target.closest(".pause");
+    if (chip) {
+      const key = chip.dataset.gap;
+      applyGapOp([key], !state.deletedGaps.has(key));
+      return;
+    }
     const el = e.target.closest(".sentence");
     if (!el) return;
     const id = Number(el.dataset.id);
@@ -538,6 +656,37 @@ function bindEvents() {
   $("#timeline").addEventListener("click", (e) => {
     const r = e.currentTarget.getBoundingClientRect();
     video.currentTime = ((e.clientX - r.left) / r.width) * state.duration;
+  });
+
+  // timeline blocks: click = select & seek, double-click = cut/restore
+  $("#blocks").addEventListener("click", (e) => {
+    const b = e.target.closest(".block");
+    if (!b) return;
+    e.stopPropagation();
+    if (b.dataset.kind === "seg") {
+      const id = Number(b.dataset.id);
+      const seg = state.segments.find((s) => s.id === id);
+      clickSentence(id, e.shiftKey);
+      if (seg) video.currentTime = seg.start + 0.01;
+      const sentEl = document.querySelector(`.sentence[data-id="${id}"]`);
+      if (sentEl) sentEl.scrollIntoView({ block: "center", behavior: "smooth" });
+    } else {
+      const g = gapList().find((x) => x.key === b.dataset.key);
+      if (g) video.currentTime = g.start + 0.01;
+    }
+  });
+  $("#blocks").addEventListener("dblclick", (e) => {
+    const b = e.target.closest(".block");
+    if (!b) return;
+    e.stopPropagation();
+    if (b.dataset.kind === "seg") {
+      const id = Number(b.dataset.id);
+      const seg = state.segments.find((s) => s.id === id);
+      if (seg) applyOp([id], !seg.deleted);
+    } else {
+      const key = b.dataset.key;
+      applyGapOp([key], !state.deletedGaps.has(key));
+    }
   });
 
   $("#search").addEventListener("input", (e) => runSearch(e.target.value.trim()));
@@ -604,6 +753,7 @@ async function init() {
   state.name = project.name;
   state.duration = project.duration;
   state.segments = project.segments || [];
+  state.deletedGaps = new Set(project.deleted_gaps || []);
   state.subStyle = { ...DEFAULT_SUB_STYLE, ...(project.sub_style || {}) };
   syncStylePanel();
   $("#sub-control").classList.toggle("on", state.showSubs);
