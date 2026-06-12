@@ -364,7 +364,14 @@ function bindEvents() {
   transcript.addEventListener("click", (e) => {
     const el = e.target.closest(".sentence");
     if (!el) return;
-    clickSentence(Number(el.dataset.id), e.shiftKey);
+    const id = Number(el.dataset.id);
+    clickSentence(id, e.shiftKey);
+    if (!e.shiftKey) {
+      // jump the playhead to the clicked sentence (CapCut behavior);
+      // shift-click only extends the selection without seeking
+      const seg = state.segments.find((s) => s.id === id);
+      if (seg) video.currentTime = seg.start + 0.01;
+    }
   });
 
   transcript.addEventListener("dblclick", (e) => {
