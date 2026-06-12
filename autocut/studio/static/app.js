@@ -146,14 +146,17 @@ function tickPlayhead() {
 
 function updateLiveSub() {
   const el = $("#live-sub");
-  if (!state.showSubs || !state.segments.length) {
+  const panelOpen = !$("#style-panel").classList.contains("hidden");
+  if ((!state.showSubs && !panelOpen) || !state.segments.length) {
     el.classList.add("hidden");
     return;
   }
   const t = video.currentTime;
-  const seg = state.segments.find(
+  let seg = state.segments.find(
     (s) => !s.deleted && t >= s.start && t < s.end
   );
+  // while styling, always show a sample line so changes are visible anywhere
+  if (!seg && panelOpen) seg = state.segments.find((s) => !s.deleted);
   if (!seg) {
     el.classList.add("hidden");
     return;
@@ -191,6 +194,19 @@ function syncStylePanel() {
   $("#ss-stroke").value = st.stroke;
   $("#ss-posv").value = st.posv;
   $("#ss-posv-val").textContent = `${st.posv}%`;
+  for (const sw of document.querySelectorAll("#ss-swatches i")) {
+    sw.classList.toggle(
+      "active",
+      sw.dataset.c.toLowerCase() === (st.color || "").toLowerCase()
+    );
+  }
+}
+
+function toggleStylePanel(show) {
+  const panel = $("#style-panel");
+  const open = show ?? panel.classList.contains("hidden");
+  panel.classList.toggle("hidden", !open);
+  $("#btn-style").classList.toggle("open", open);
 }
 
 function applyStyle(patch) {
@@ -205,9 +221,7 @@ function applyStyle(patch) {
 }
 
 function bindStylePanel() {
-  $("#btn-style").addEventListener("click", () => {
-    $("#style-panel").classList.toggle("hidden");
-  });
+  $("#btn-style").addEventListener("click", () => toggleStylePanel());
   $("#ss-font").addEventListener("change", (e) =>
     applyStyle({ font: e.target.value })
   );
@@ -235,9 +249,9 @@ function bindStylePanel() {
     if (
       !panel.classList.contains("hidden") &&
       !panel.contains(e.target) &&
-      e.target.id !== "btn-style"
+      !e.target.closest("#sub-control")
     ) {
-      panel.classList.add("hidden");
+      toggleStylePanel(false);
     }
   });
 }
@@ -516,8 +530,9 @@ function bindEvents() {
     updateTimeDisplay();
   });
 
-  $("#sub-toggle").addEventListener("change", (e) => {
-    state.showSubs = e.target.checked;
+  $("#sub-toggle-btn").addEventListener("click", () => {
+    state.showSubs = !state.showSubs;
+    $("#sub-control").classList.toggle("on", state.showSubs);
   });
 
   $("#timeline").addEventListener("click", (e) => {
@@ -559,6 +574,10 @@ function bindEvents() {
       e.preventDefault();
       e.shiftKey ? redo() : undo();
     } else if (e.key === "Escape") {
+      if (!$("#style-panel").classList.contains("hidden")) {
+        toggleStylePanel(false);
+        return;
+      }
       state.selected.clear();
       refreshClasses();
     } else if (e.key === "ArrowLeft") {
@@ -587,6 +606,7 @@ async function init() {
   state.segments = project.segments || [];
   state.subStyle = { ...DEFAULT_SUB_STYLE, ...(project.sub_style || {}) };
   syncStylePanel();
+  $("#sub-control").classList.toggle("on", state.showSubs);
   $("#filename").textContent = project.name;
   document.title = `${project.name} — AutoCut Studio`;
 

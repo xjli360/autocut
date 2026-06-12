@@ -42,12 +42,10 @@
       <div id="controls">
         <button id="btn-play" class="play-btn" title="播放/暂停 (空格)">▶</button>
         <span id="time-display">00:00 / 00:00</span>
-        <label class="switch">
-          <input type="checkbox" id="sub-toggle" checked>
-          <span class="slider"></span>
-          <span class="switch-label">字幕</span>
-        </label>
-        <button id="btn-style" class="btn-icon" title="字幕样式">样式 ▾</button>
+        <div id="sub-control" class="seg">
+          <button id="sub-toggle-btn" class="seg-main" title="显示/隐藏字幕"><i class="dot"></i>字幕</button>
+          <button id="btn-style" class="seg-aux" title="字幕样式">Aa</button>
+        </div>
         <label class="switch">
           <input type="checkbox" id="preview-toggle" checked>
           <span class="slider"></span>
@@ -56,6 +54,7 @@
       </div>
 
       <div id="style-panel" class="hidden">
+        <div class="sp-caret"></div>
         <div class="sp-title">字幕样式 <span class="sp-note">预览与导出同步生效</span></div>
         <div class="sp-row">
           <label>字体</label>

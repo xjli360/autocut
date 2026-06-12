@@ -182,7 +182,47 @@ body {
 .play-btn:hover { filter: brightness(1.1); }
 #time-display { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
 
-.switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; margin-left: auto; }
+/* segmented pill: [字幕 | Aa] */
+.seg {
+  display: inline-flex;
+  align-items: stretch;
+  margin-left: auto;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--panel-2);
+  transition: border-color 0.15s;
+}
+.seg.on { border-color: rgba(0, 224, 184, 0.45); }
+.seg button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 6px 11px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+.seg button:hover { background: rgba(255, 255, 255, 0.05); color: var(--text); }
+.seg .seg-aux {
+  border-left: 1px solid var(--border);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+.seg.on .seg-main { color: var(--accent); font-weight: 600; }
+.seg .seg-aux.open { background: rgba(0, 224, 184, 0.12); color: var(--accent); }
+.seg .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--border);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.seg.on .dot { background: var(--accent); box-shadow: 0 0 6px rgba(0, 224, 184, 0.8); }
+
+.switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 .switch input { display: none; }
 .switch .slider {
   width: 34px; height: 19px; border-radius: 10px;
@@ -201,14 +241,29 @@ body {
 #player-panel { position: relative; }
 #style-panel {
   position: absolute;
-  right: 14px; bottom: 64px;
-  width: 280px;
+  right: 110px; bottom: 66px;
+  width: 286px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 14px 16px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
   z-index: 20;
+  animation: sp-pop 0.16s ease;
+  transform-origin: bottom right;
+}
+@keyframes sp-pop {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+.sp-caret {
+  position: absolute;
+  right: 36px; bottom: -6px;
+  width: 11px; height: 11px;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  transform: rotate(45deg);
 }
 .sp-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; }
 .sp-note { color: var(--muted); font-weight: 400; font-size: 11px; margin-left: 6px; }
@@ -235,9 +290,12 @@ body {
 .swatches i {
   width: 18px; height: 18px; border-radius: 50%;
   border: 1px solid var(--border); cursor: pointer;
-  transition: transform 0.1s;
+  transition: transform 0.1s, box-shadow 0.1s;
 }
 .swatches i:hover { transform: scale(1.18); }
+.swatches i.active {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+}
 .sp-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
 .sp-actions .btn { padding: 4px 12px; font-size: 12px; }
 
