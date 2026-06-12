@@ -420,6 +420,41 @@ body {
 #export-done .path { color: var(--muted); font-size: 12px; word-break: break-all; margin-bottom: 12px; }
 .error { color: var(--danger); font-size: 13px; margin-top: 12px; word-break: break-all; }
 
+/* ---------- tag inspector & toast ---------- */
+#tag-tip {
+  position: fixed;
+  z-index: 99;
+  pointer-events: none;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: var(--accent);
+  background: rgba(10, 10, 14, 0.92);
+  border: 1px solid rgba(0, 224, 184, 0.4);
+  border-radius: 6px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  z-index: 100;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-size: 13px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  animation: sp-pop 0.16s ease;
+}
+#toast code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  color: var(--accent);
+  font-size: 12px;
+}
+#tag-toggle.off { opacity: 0.45; }
+
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }

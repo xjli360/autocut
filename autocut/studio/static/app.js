@@ -746,9 +746,69 @@ function togglePlay() {
   }
 }
 
+/* ---------- tag inspector: hover shows data-tag, right-click copies ---------- */
+
+function toast(html) {
+  const t = $("#toast");
+  t.innerHTML = html;
+  t.classList.remove("hidden");
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => t.classList.add("hidden"), 1600);
+}
+
+function bindTagInspector() {
+  const tip = $("#tag-tip");
+  const btn = $("#tag-toggle");
+  let enabled = localStorage.getItem("autocut.tagTip") !== "0";
+
+  const renderBtn = () => btn.classList.toggle("off", !enabled);
+  renderBtn();
+
+  btn.addEventListener("click", () => {
+    enabled = !enabled;
+    localStorage.setItem("autocut.tagTip", enabled ? "1" : "0");
+    renderBtn();
+    if (!enabled) tip.classList.add("hidden");
+    toast(enabled ? "标签巡视已开启：悬停看名称，右键复制" : "标签巡视已关闭");
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (!enabled || !(e.target instanceof Element)) return;
+    const el = e.target.closest("[data-tag]");
+    if (!el) {
+      tip.classList.add("hidden");
+      return;
+    }
+    tip.textContent = el.dataset.tag;
+    tip.classList.remove("hidden");
+    const x = Math.min(e.clientX + 12, window.innerWidth - tip.offsetWidth - 8);
+    const y = Math.min(e.clientY + 16, window.innerHeight - tip.offsetHeight - 8);
+    tip.style.left = `${x}px`;
+    tip.style.top = `${y}px`;
+  });
+  document.addEventListener("mouseleave", () => tip.classList.add("hidden"));
+
+  document.addEventListener("contextmenu", (e) => {
+    if (!enabled || !(e.target instanceof Element)) return;
+    const el = e.target.closest("[data-tag]");
+    if (!el) return;
+    e.preventDefault();
+    const tag = el.dataset.tag;
+    const ok = () => toast(`已复制 <code>${tag}</code>`);
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(tag).then(ok, () =>
+        toast(`复制失败，标签为 <code>${tag}</code>`)
+      );
+    } else {
+      toast(`标签为 <code>${tag}</code>`);
+    }
+  });
+}
+
 async function init() {
   bindEvents();
   bindStylePanel();
+  bindTagInspector();
   const project = await api("GET", "/api/project");
   state.name = project.name;
   state.duration = project.duration;
