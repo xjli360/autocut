@@ -14,8 +14,18 @@ const state = {
   redo: [],
   preview: true,
   showSubs: true,
+  subStyle: null,
   saveTimer: null,
+  styleTimer: null,
   pollTimer: null,
+};
+
+const DEFAULT_SUB_STYLE = {
+  font: "PingFang SC",
+  size: 4.5, // % of video height
+  color: "#ffffff",
+  stroke: "#141414",
+  posv: 5, // offset from bottom, % of video height
 };
 
 /* ---------- helpers ---------- */
@@ -156,11 +166,80 @@ function updateLiveSub() {
     el.classList.add("hidden");
     return;
   }
+  const st = state.subStyle || DEFAULT_SUB_STYLE;
   el.style.left = `${r.left - w.left}px`;
   el.style.width = `${r.width}px`;
-  el.style.bottom = `${w.bottom - r.bottom + r.height * 0.05}px`;
-  el.style.fontSize = `${Math.max(13, r.height * 0.045)}px`;
+  el.style.bottom = `${w.bottom - r.bottom + (r.height * st.posv) / 100}px`;
+  el.style.fontSize = `${Math.max(12, (r.height * st.size) / 100)}px`;
+  el.style.fontFamily = `"${st.font}", "PingFang SC", sans-serif`;
+  el.style.color = st.color;
+  const sc = st.stroke;
+  el.style.textShadow =
+    `0 0 3px ${sc}, 0 1px 3px ${sc}, 0 -1px 3px ${sc}, ` +
+    `1px 0 3px ${sc}, -1px 0 3px ${sc}`;
   el.classList.remove("hidden");
+}
+
+/* ---------- subtitle style panel ---------- */
+
+function syncStylePanel() {
+  const st = state.subStyle;
+  $("#ss-font").value = st.font;
+  $("#ss-size").value = st.size;
+  $("#ss-size-val").textContent = `${st.size}%`;
+  $("#ss-color").value = st.color;
+  $("#ss-stroke").value = st.stroke;
+  $("#ss-posv").value = st.posv;
+  $("#ss-posv-val").textContent = `${st.posv}%`;
+}
+
+function applyStyle(patch) {
+  Object.assign(state.subStyle, patch);
+  syncStylePanel();
+  updateLiveSub();
+  clearTimeout(state.styleTimer);
+  state.styleTimer = setTimeout(
+    () => api("PUT", "/api/style", state.subStyle),
+    400
+  );
+}
+
+function bindStylePanel() {
+  $("#btn-style").addEventListener("click", () => {
+    $("#style-panel").classList.toggle("hidden");
+  });
+  $("#ss-font").addEventListener("change", (e) =>
+    applyStyle({ font: e.target.value })
+  );
+  $("#ss-size").addEventListener("input", (e) =>
+    applyStyle({ size: parseFloat(e.target.value) })
+  );
+  $("#ss-color").addEventListener("input", (e) =>
+    applyStyle({ color: e.target.value })
+  );
+  $("#ss-stroke").addEventListener("input", (e) =>
+    applyStyle({ stroke: e.target.value })
+  );
+  $("#ss-posv").addEventListener("input", (e) =>
+    applyStyle({ posv: parseFloat(e.target.value) })
+  );
+  $("#ss-swatches").addEventListener("click", (e) => {
+    const c = e.target.dataset.c;
+    if (c) applyStyle({ color: c });
+  });
+  $("#ss-reset").addEventListener("click", () =>
+    applyStyle({ ...DEFAULT_SUB_STYLE })
+  );
+  document.addEventListener("click", (e) => {
+    const panel = $("#style-panel");
+    if (
+      !panel.classList.contains("hidden") &&
+      !panel.contains(e.target) &&
+      e.target.id !== "btn-style"
+    ) {
+      panel.classList.add("hidden");
+    }
+  });
 }
 
 function skipDeleted() {
@@ -501,10 +580,13 @@ function togglePlay() {
 
 async function init() {
   bindEvents();
+  bindStylePanel();
   const project = await api("GET", "/api/project");
   state.name = project.name;
   state.duration = project.duration;
   state.segments = project.segments || [];
+  state.subStyle = { ...DEFAULT_SUB_STYLE, ...(project.sub_style || {}) };
+  syncStylePanel();
   $("#filename").textContent = project.name;
   document.title = `${project.name} — AutoCut Studio`;
 

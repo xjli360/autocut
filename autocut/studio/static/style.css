@@ -197,6 +197,50 @@ body {
 .switch input:checked + .slider::after { left: 17px; }
 .switch-label { font-size: 12px; color: var(--muted); }
 
+/* ---------- subtitle style panel ---------- */
+#player-panel { position: relative; }
+#style-panel {
+  position: absolute;
+  right: 14px; bottom: 64px;
+  width: 280px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  z-index: 20;
+}
+.sp-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+.sp-note { color: var(--muted); font-weight: 400; font-size: 11px; margin-left: 6px; }
+.sp-row {
+  display: flex; align-items: center; gap: 10px;
+  margin: 10px 0;
+  font-size: 12px;
+}
+.sp-row > label { width: 32px; color: var(--muted); flex: none; }
+.sp-row select {
+  flex: 1;
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 4px 6px; font-size: 12px; outline: none;
+}
+.sp-row input[type="range"] { flex: 1; accent-color: var(--accent); }
+.sp-val { width: 38px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sp-row input[type="color"] {
+  width: 34px; height: 24px; padding: 0;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--panel-2); cursor: pointer;
+}
+.swatches { display: flex; gap: 6px; }
+.swatches i {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 1px solid var(--border); cursor: pointer;
+  transition: transform 0.1s;
+}
+.swatches i:hover { transform: scale(1.18); }
+.sp-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
+.sp-actions .btn { padding: 4px 12px; font-size: 12px; }
+
 /* ---------- timeline ---------- */
 #bottom { flex: none; background: var(--panel); border-top: 1px solid var(--border); }
 #timeline {

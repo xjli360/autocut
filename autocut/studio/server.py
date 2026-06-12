@@ -14,6 +14,39 @@ from typing import Any, Dict, List, Optional, Tuple
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 SIDECAR_VERSION = 1
 
+# Shared by live preview (CSS) and burned export (Pillow): names must map to
+# fonts that exist both as browser families and as font files on disk.
+FONT_PATHS = {
+    "PingFang SC": "/System/Library/Fonts/PingFang.ttc",
+    "Hiragino Sans GB": "/System/Library/Fonts/Hiragino Sans GB.ttc",
+    "Songti SC": "/System/Library/Fonts/Supplemental/Songti.ttc",
+    "Kaiti SC": "/System/Library/Fonts/Supplemental/Kaiti.ttc",
+    "Arial Unicode MS": "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+}
+
+DEFAULT_SUB_STYLE = {
+    "font": "PingFang SC",
+    "size": 4.5,  # % of video height
+    "color": "#ffffff",
+    "stroke": "#141414",
+    "posv": 5,  # baseline offset from the bottom, % of video height
+}
+
+
+def _hex_rgba(value: str, alpha: int = 255) -> Tuple[int, int, int, int]:
+    value = (value or "").lstrip("#")
+    if len(value) != 6:
+        return (255, 255, 255, alpha)
+    try:
+        return (
+            int(value[0:2], 16),
+            int(value[2:4], 16),
+            int(value[4:6], 16),
+            alpha,
+        )
+    except ValueError:
+        return (255, 255, 255, alpha)
+
 
 def _ffprobe(video_path: str) -> Tuple[float, bool, int, int]:
     """Return (duration_seconds, has_audio_stream, width, height)."""
@@ -58,6 +91,7 @@ class Project:
         )
         self.sidecar = self.video_path + ".autocut.json"
         self.segments: List[Dict[str, Any]] = []
+        self.sub_style: Dict[str, Any] = dict(DEFAULT_SUB_STYLE)
         self.asr = {"state": "idle", "error": None, "elapsed": 0.0}
         self.export = {"state": "idle", "progress": 0.0, "output": None, "error": None}
         self._lock = threading.Lock()
@@ -72,6 +106,7 @@ class Project:
             with open(self.sidecar, encoding="utf-8") as f:
                 data = json.load(f)
             self.segments = data.get("segments", [])
+            self.sub_style.update(data.get("sub_style", {}))
             if self.segments:
                 self.asr["state"] = "done"
         except Exception as e:  # corrupted sidecar should not block opening
@@ -83,6 +118,7 @@ class Project:
             "media": os.path.basename(self.video_path),
             "duration": self.duration,
             "segments": self.segments,
+            "sub_style": self.sub_style,
         }
         with open(self.sidecar, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=1)
@@ -140,6 +176,13 @@ class Project:
         with self._lock:
             for s in self.segments:
                 s["deleted"] = s["id"] in deleted
+            self._save_sidecar()
+
+    def update_style(self, style: Dict[str, Any]):
+        with self._lock:
+            for key in DEFAULT_SUB_STYLE:
+                if key in style:
+                    self.sub_style[key] = style[key]
             self._save_sidecar()
 
     # ---------- cutting math ----------
@@ -248,7 +291,8 @@ class Project:
             subs_dir = None
             if opts.get("burn_subs", False) and entries:
                 subs_dir = tempfile.mkdtemp(prefix="autocut_subs_")
-                margin = max(16, int(self.height * 0.05))
+                posv = float(self.sub_style.get("posv", 5))
+                margin = max(8, int(self.height * posv / 100))
                 for k, (a, b, png) in enumerate(
                     self._render_sub_images(entries, subs_dir)
                 ):
@@ -397,17 +441,20 @@ class Project:
         outline, wrapped to the video width). Returns [(start, end, png)]."""
         from PIL import Image, ImageDraw, ImageFont
 
+        style = self.sub_style
         width = self.width or 1280
         height = self.height or 720
-        font_size = max(18, int(height * 0.045))
+        size_pct = float(style.get("size", 4.5))
+        font_size = max(12, int(height * size_pct / 100))
+        fill = _hex_rgba(style.get("color", "#ffffff"))
+        stroke_fill = _hex_rgba(style.get("stroke", "#141414"), alpha=230)
+
+        candidates = [FONT_PATHS.get(style.get("font", ""), "")] + list(
+            FONT_PATHS.values()
+        ) + ["/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"]
         font = None
-        for path in (
-            "/System/Library/Fonts/PingFang.ttc",
-            "/System/Library/Fonts/Hiragino Sans GB.ttc",
-            "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
-            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-        ):
-            if os.path.exists(path):
+        for path in candidates:
+            if path and os.path.exists(path):
                 font = ImageFont.truetype(path, font_size)
                 break
         if font is None:
@@ -442,9 +489,9 @@ class Project:
                     ((img_w - lw) / 2, stroke + 4 + i * line_h),
                     line,
                     font=font,
-                    fill=(255, 255, 255, 255),
+                    fill=fill,
                     stroke_width=stroke,
-                    stroke_fill=(20, 20, 20, 230),
+                    stroke_fill=stroke_fill,
                 )
             png = os.path.join(out_dir, f"sub_{k:04d}.png")
             img.save(png)
@@ -461,6 +508,8 @@ class Project:
                 "duration": self.duration,
                 "has_audio": self.has_audio,
                 "segments": self.segments,
+                "sub_style": dict(self.sub_style),
+                "fonts": list(FONT_PATHS),
                 "asr": dict(self.asr),
                 "export": dict(self.export),
             }
@@ -499,6 +548,12 @@ def create_app(project: Project):
     async def put_segments(request: Request):
         body = await request.json()
         project.update_deleted(body.get("deleted_ids", []))
+        return {"ok": True}
+
+    @app.put("/api/style")
+    async def put_style(request: Request):
+        body = await request.json()
+        project.update_style(body or {})
         return {"ok": True}
 
     @app.post("/api/export")

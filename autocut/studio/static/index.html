@@ -47,11 +47,52 @@
           <span class="slider"></span>
           <span class="switch-label">字幕</span>
         </label>
+        <button id="btn-style" class="btn-icon" title="字幕样式">样式 ▾</button>
         <label class="switch">
           <input type="checkbox" id="preview-toggle" checked>
           <span class="slider"></span>
           <span class="switch-label">预览成片</span>
         </label>
+      </div>
+
+      <div id="style-panel" class="hidden">
+        <div class="sp-title">字幕样式 <span class="sp-note">预览与导出同步生效</span></div>
+        <div class="sp-row">
+          <label>字体</label>
+          <select id="ss-font">
+            <option value="PingFang SC">苹方</option>
+            <option value="Hiragino Sans GB">冬青黑体</option>
+            <option value="Songti SC">宋体</option>
+            <option value="Kaiti SC">楷体</option>
+            <option value="Arial Unicode MS">Arial Unicode</option>
+          </select>
+        </div>
+        <div class="sp-row">
+          <label>字号</label>
+          <input type="range" id="ss-size" min="2" max="10" step="0.25">
+          <span class="sp-val" id="ss-size-val"></span>
+        </div>
+        <div class="sp-row">
+          <label>颜色</label>
+          <input type="color" id="ss-color">
+          <span class="swatches" id="ss-swatches">
+            <i style="background:#ffffff" data-c="#ffffff"></i>
+            <i style="background:#ffe14d" data-c="#ffe14d"></i>
+            <i style="background:#00e0b8" data-c="#00e0b8"></i>
+            <i style="background:#ff7ab6" data-c="#ff7ab6"></i>
+            <i style="background:#111111" data-c="#111111"></i>
+          </span>
+        </div>
+        <div class="sp-row">
+          <label>描边</label>
+          <input type="color" id="ss-stroke">
+        </div>
+        <div class="sp-row">
+          <label>位置</label>
+          <input type="range" id="ss-posv" min="2" max="80" step="1">
+          <span class="sp-val" id="ss-posv-val"></span>
+        </div>
+        <div class="sp-actions"><button id="ss-reset" class="btn ghost">恢复默认</button></div>
       </div>
     </section>
   </main>
