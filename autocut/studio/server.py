@@ -15,15 +15,15 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 SIDECAR_VERSION = 1
 
 
-def _ffprobe(video_path: str) -> Tuple[float, bool]:
-    """Return (duration_seconds, has_audio_stream)."""
+def _ffprobe(video_path: str) -> Tuple[float, bool, int, int]:
+    """Return (duration_seconds, has_audio_stream, width, height)."""
     out = subprocess.run(
         [
             "ffprobe",
             "-v",
             "error",
             "-show_entries",
-            "format=duration:stream=codec_type",
+            "format=duration:stream=codec_type,width,height",
             "-of",
             "json",
             video_path,
@@ -35,8 +35,14 @@ def _ffprobe(video_path: str) -> Tuple[float, bool]:
         raise RuntimeError(f"ffprobe failed: {out.stderr.strip()}")
     info = json.loads(out.stdout)
     duration = float(info["format"]["duration"])
-    has_audio = any(s.get("codec_type") == "audio" for s in info.get("streams", []))
-    return duration, has_audio
+    streams = info.get("streams", [])
+    has_audio = any(s.get("codec_type") == "audio" for s in streams)
+    width = height = 0
+    for s in streams:
+        if s.get("codec_type") == "video":
+            width, height = int(s.get("width", 0)), int(s.get("height", 0))
+            break
+    return duration, has_audio, width, height
 
 
 class Project:
@@ -47,7 +53,9 @@ class Project:
         if not os.path.exists(self.video_path):
             raise FileNotFoundError(self.video_path)
         self.device = device
-        self.duration, self.has_audio = _ffprobe(self.video_path)
+        self.duration, self.has_audio, self.width, self.height = _ffprobe(
+            self.video_path
+        )
         self.sidecar = self.video_path + ".autocut.json"
         self.segments: List[Dict[str, Any]] = []
         self.asr = {"state": "idle", "error": None, "elapsed": 0.0}
@@ -212,45 +220,73 @@ class Project:
             output = self._output_path()
             total = sum(e - s for s, e in ranges)
 
-            lines = []
+            entries = self._retimed_entries(ranges)
+            srt_text = self._compose_srt(entries)
+
+            graph = []
             for i, (s, e) in enumerate(ranges):
-                lines.append(
-                    f"[0:v]trim=start={s:.3f}:end={e:.3f},setpts=PTS-STARTPTS[v{i}];"
+                graph.append(
+                    f"[0:v]trim=start={s:.3f}:end={e:.3f},setpts=PTS-STARTPTS[v{i}]"
                 )
                 if self.has_audio:
-                    lines.append(
-                        f"[0:a]atrim=start={s:.3f}:end={e:.3f},asetpts=PTS-STARTPTS[a{i}];"
+                    graph.append(
+                        f"[0:a]atrim=start={s:.3f}:end={e:.3f},asetpts=PTS-STARTPTS[a{i}]"
                     )
             pairs = "".join(
                 f"[v{i}][a{i}]" if self.has_audio else f"[v{i}]"
                 for i in range(len(ranges))
             )
             a_flag = 1 if self.has_audio else 0
-            lines.append(
+            graph.append(
                 f"{pairs}concat=n={len(ranges)}:v=1:a={a_flag}[outv]"
                 + ("[outa]" if self.has_audio else "")
             )
+            # Burn subtitles by overlaying pre-rendered PNGs: works with any
+            # ffmpeg build (no libass/freetype needed, this Mac's lacks both).
+            v_label = "outv"
+            overlay_inputs: List[str] = []
+            subs_dir = None
+            if opts.get("burn_subs", False) and entries:
+                subs_dir = tempfile.mkdtemp(prefix="autocut_subs_")
+                margin = max(16, int(self.height * 0.05))
+                for k, (a, b, png) in enumerate(
+                    self._render_sub_images(entries, subs_dir)
+                ):
+                    overlay_inputs += ["-loop", "1", "-i", png]
+                    nxt = f"ov{k}"
+                    # shortest=1: the looped PNG inputs are infinite, without it
+                    # the overlay chain never reaches EOF and ffmpeg runs forever
+                    graph.append(
+                        f"[{v_label}][{k + 1}:v]overlay=x=(W-w)/2:y=H-h-{margin}"
+                        f":shortest=1:enable='between(t,{a:.3f},{b:.3f})'[{nxt}]"
+                    )
+                    v_label = nxt
 
             with tempfile.NamedTemporaryFile(
                 "w", suffix=".txt", delete=False
             ) as script:
-                script.write("\n".join(lines))
+                script.write(";\n".join(graph))
                 script_path = script.name
 
-            cmd = [
-                "ffmpeg",
-                "-y",
-                "-hide_banner",
-                "-nostdin",
-                "-loglevel",
-                "error",
-                "-i",
-                self.video_path,
-                "-filter_complex_script",
-                script_path,
-                "-map",
-                "[outv]",
-            ]
+            cmd = (
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-hide_banner",
+                    "-nostdin",
+                    "-loglevel",
+                    "error",
+                    "-i",
+                    self.video_path,
+                ]
+                + overlay_inputs
+                + [
+                    "-filter_complex_script",
+                    script_path,
+                    "-map",
+                    f"[{v_label}]",
+                ]
+            )
             if self.has_audio:
                 cmd += ["-map", "[outa]", "-c:a", "aac", "-b:a", "192k"]
             cmd += [
@@ -262,6 +298,9 @@ class Project:
                 "18",
                 "-movflags",
                 "+faststart",
+                # hard cap as a second guard against non-terminating inputs
+                "-t",
+                f"{total:.3f}",
                 "-progress",
                 "pipe:1",
                 output,
@@ -278,11 +317,16 @@ class Project:
                         self.export["progress"] = min(0.99, done / max(total, 0.01))
             proc.wait()
             os.unlink(script_path)
+            if subs_dir:
+                import shutil
+
+                shutil.rmtree(subs_dir, ignore_errors=True)
             if proc.returncode != 0:
                 raise RuntimeError(proc.stderr.read()[-800:])
 
-            if opts.get("srt", True):
-                self._write_retimed_srt(ranges, output)
+            if opts.get("srt", True) and srt_text.strip():
+                with open(os.path.splitext(output)[0] + ".srt", "wb") as f:
+                    f.write(srt_text.encode("utf-8"))
 
             with self._lock:
                 self.export = {
@@ -301,12 +345,10 @@ class Project:
                     "error": str(e),
                 }
 
-    def _write_retimed_srt(self, ranges: List[Tuple[float, float]], output: str):
-        """Subtitles for the exported video, with removed spans squeezed out."""
-        import datetime
-
-        import srt as srt_lib
-
+    def _retimed_entries(
+        self, ranges: List[Tuple[float, float]]
+    ) -> List[Tuple[float, float, str]]:
+        """Kept sentences mapped onto the output timeline: [(start, end, text)]."""
         prefix = []  # output start time of each range
         acc = 0.0
         for s, e in ranges:
@@ -321,25 +363,93 @@ class Project:
                     return off + (t - s)
             return None
 
-        subs, idx = [], 1
+        entries = []
         for seg in self.segments:
             if seg["deleted"]:
                 continue
             a, b = to_out(seg["start"]), to_out(seg["end"])
             if a is None or b is None or b - a < 0.05:
                 continue
-            subs.append(
-                srt_lib.Subtitle(
-                    index=idx,
-                    start=datetime.timedelta(seconds=a),
-                    end=datetime.timedelta(seconds=b),
-                    content=seg["text"],
-                )
+            entries.append((a, b, seg["text"]))
+        return entries
+
+    @staticmethod
+    def _compose_srt(entries: List[Tuple[float, float, str]]) -> str:
+        import datetime
+
+        import srt as srt_lib
+
+        subs = [
+            srt_lib.Subtitle(
+                index=i,
+                start=datetime.timedelta(seconds=a),
+                end=datetime.timedelta(seconds=b),
+                content=text,
             )
-            idx += 1
-        srt_path = os.path.splitext(output)[0] + ".srt"
-        with open(srt_path, "wb") as f:
-            f.write(srt_lib.compose(subs).encode("utf-8"))
+            for i, (a, b, text) in enumerate(entries, start=1)
+        ]
+        return srt_lib.compose(subs) if subs else ""
+
+    def _render_sub_images(
+        self, entries: List[Tuple[float, float, str]], out_dir: str
+    ) -> List[Tuple[float, float, str]]:
+        """Render each subtitle as a transparent PNG (white text with dark
+        outline, wrapped to the video width). Returns [(start, end, png)]."""
+        from PIL import Image, ImageDraw, ImageFont
+
+        width = self.width or 1280
+        height = self.height or 720
+        font_size = max(18, int(height * 0.045))
+        font = None
+        for path in (
+            "/System/Library/Fonts/PingFang.ttc",
+            "/System/Library/Fonts/Hiragino Sans GB.ttc",
+            "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        ):
+            if os.path.exists(path):
+                font = ImageFont.truetype(path, font_size)
+                break
+        if font is None:
+            font = ImageFont.load_default(size=font_size)
+
+        stroke = max(2, font_size // 9)
+        max_text_w = int(width * 0.88)
+
+        def wrap(text: str) -> List[str]:
+            lines, cur = [], ""
+            for ch in text:
+                if font.getlength(cur + ch) > max_text_w and cur:
+                    lines.append(cur)
+                    cur = ch
+                else:
+                    cur += ch
+            return lines + [cur] if cur else lines
+
+        results = []
+        line_h = int(font_size * 1.35)
+        for k, (a, b, text) in enumerate(entries):
+            lines = wrap(text) or [text]
+            img_w = min(
+                width, int(max(font.getlength(l) for l in lines)) + stroke * 2 + 8
+            )
+            img_h = line_h * len(lines) + stroke * 2 + 8
+            img = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(img)
+            for i, line in enumerate(lines):
+                lw = font.getlength(line)
+                draw.text(
+                    ((img_w - lw) / 2, stroke + 4 + i * line_h),
+                    line,
+                    font=font,
+                    fill=(255, 255, 255, 255),
+                    stroke_width=stroke,
+                    stroke_fill=(20, 20, 20, 230),
+                )
+            png = os.path.join(out_dir, f"sub_{k:04d}.png")
+            img.save(png)
+            results.append((a, b, png))
+        return results
 
     # ---------- snapshots ----------
 

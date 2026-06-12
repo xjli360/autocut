@@ -328,6 +328,7 @@ async function startExport() {
     mode,
     bridge_gap: parseFloat($("#bridge-gap").value) || 1.0,
     srt: $("#export-srt").checked,
+    burn_subs: $("#burn-subs").checked,
   };
   $("#btn-export-start").disabled = true;
   $("#export-progress").classList.remove("hidden");
