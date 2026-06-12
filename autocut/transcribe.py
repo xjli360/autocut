@@ -34,6 +34,11 @@ class Transcribe:
                     self.sampling_rate
                 )
                 self.whisper_model.load(self.args.whisper_model, self.args.device)
+            elif self.args.whisper_mode == WhisperMode.FUNASR.value:
+                from .funasr_model import FunASRModel
+
+                self.whisper_model = FunASRModel(self.sampling_rate)
+                self.whisper_model.load(self.args.device)
         logging.info(f"Done Init model in {time.time() - tic:.1f} sec")
 
     def run(self):
@@ -44,7 +49,11 @@ class Transcribe:
                 continue
 
             audio = utils.load_audio(input, sr=self.sampling_rate)
-            speech_array_indices = self._detect_voice_activity(audio)
+            if self.args.whisper_mode == WhisperMode.FUNASR.value:
+                # FunASR pipeline runs its own fsmn-vad
+                speech_array_indices = [{"start": 0, "end": len(audio)}]
+            else:
+                speech_array_indices = self._detect_voice_activity(audio)
             transcribe_results = self._transcribe(input, audio, speech_array_indices)
 
             output = name + ".srt"
@@ -93,16 +102,19 @@ class Transcribe:
         speech_array_indices: List[SPEECH_ARRAY_INDEX],
     ) -> List[Any]:
         tic = time.time()
-        res = (
-            self.whisper_model.transcribe(
+        if self.args.whisper_mode == WhisperMode.FUNASR.value:
+            res = self.whisper_model.transcribe(audio)
+        elif (
+            self.args.whisper_mode == WhisperMode.WHISPER.value
+            or self.args.whisper_mode == WhisperMode.FASTER.value
+        ):
+            res = self.whisper_model.transcribe(
                 audio, speech_array_indices, self.args.lang, self.args.prompt
             )
-            if self.args.whisper_mode == WhisperMode.WHISPER.value
-            or self.args.whisper_mode == WhisperMode.FASTER.value
-            else self.whisper_model.transcribe(
+        else:
+            res = self.whisper_model.transcribe(
                 input, audio, speech_array_indices, self.args.lang, self.args.prompt
             )
-        )
 
         logging.info(f"Done transcription in {time.time() - tic:.1f} sec")
         return res

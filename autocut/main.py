@@ -37,6 +37,22 @@ def main():
         action=argparse.BooleanOptionalAction,
     )
     parser.add_argument(
+        "--studio",
+        help="Open the web studio to edit a video by editing its transcript",
+        action=argparse.BooleanOptionalAction,
+    )
+    parser.add_argument(
+        "--studio-port",
+        type=int,
+        default=8765,
+        help="Port for the web studio",
+    )
+    parser.add_argument(
+        "--no-browser",
+        help="Do not open the browser automatically in studio mode",
+        action=argparse.BooleanOptionalAction,
+    )
+    parser.add_argument(
         "-s",
         help="Convert .srt to a compact format for easier editing",
         action=argparse.BooleanOptionalAction,
@@ -118,9 +134,10 @@ def main():
     parser.add_argument(
         "--whisper-mode",
         type=str,
-        default=WhisperMode.WHISPER.value,
+        default=WhisperMode.FUNASR.value,
         choices=WhisperMode.get_values(),
-        help="Whisper inference mode: whisper: run whisper locally; openai: use openai api.",
+        help="ASR backend: funasr: FunASR Paraformer (default, best for Chinese); "
+        "whisper: run whisper locally (needs '.[whisper]'); openai: use openai api.",
     )
     parser.add_argument(
         "--openai-rpm",
@@ -164,7 +181,11 @@ def main():
 
     args = parser.parse_args()
 
-    if args.transcribe:
+    if args.studio:
+        from .studio.server import run_studio
+
+        run_studio(args)
+    elif args.transcribe:
         from .transcribe import Transcribe
 
         Transcribe(args).run()

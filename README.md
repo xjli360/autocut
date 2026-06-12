@@ -2,6 +2,27 @@
 
 AutoCut 对你的视频自动生成字幕。然后你选择需要保留的句子，AutoCut 将对你视频中对应的片段裁切并保存。你无需使用视频编辑软件，只需要编辑文本文件即可完成剪切。
 
+## 🎬 AutoCut Studio（本 fork 新增）
+
+类似剪映"文稿剪辑"的网页界面：本地用 **FunASR Paraformer** 识别语音（中文效果优于 whisper，自带标点和精确句级时间戳），在文稿里**删除文字即可剪掉对应画面**，实时预览成片效果，一键导出视频和对齐好的字幕。
+
+```shell
+# 安装（含 funasr + web 界面依赖）
+pip install -e '.[studio]'
+
+# 打开 Studio（自动弹出浏览器，首次识别会下载约 1GB 模型）
+autocut --studio 你的视频.mp4
+```
+
+功能：
+- 文稿区单击选中 / Shift 连选 / 双击从该句播放 / Delete 删除 / ⌘Z 撤销重做
+- 「预览成片」开关：播放时自动跳过已删句子，所见即所得
+- 底部时间轴显示保留（绿）/ 删除（红纹）块
+- 导出两种模式：**按文稿精确剪**（只删被删句子）或 **紧凑模式**（同时剪掉句间长停顿，适合口播）
+- 同时导出时间码已对齐成片的 `.srt` 字幕；编辑进度自动保存在视频旁的 `*.autocut.json`
+
+命令行老流程现在默认也走 Paraformer（`autocut -t 视频.mp4`）。原 whisper 后端改为可选依赖：`pip install -e '.[whisper]'` 后用 `--whisper-mode whisper`（注：openai-whisper 官方包在 setuptools≥81 下构建会失败，必要时先 `pip install setuptools<81`）。
+
 **2024.10.05更新**：支持 `large-v3-turbo` [模型](https://github.com/openai/whisper/discussions/2363)，提供更快的转录速度。
 
 ```shell

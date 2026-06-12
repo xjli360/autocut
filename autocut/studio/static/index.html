@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AutoCut Studio</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="logo"><span class="logo-mark">✂</span>AutoCut<span class="logo-sub">Studio</span></div>
+    <div id="filename" class="filename"></div>
+    <div class="topbar-right">
+      <span id="save-state"></span>
+      <button id="btn-export" class="btn primary" disabled>导出</button>
+    </div>
+  </header>
+
+  <main id="main">
+    <section id="transcript-panel">
+      <div class="panel-head">
+        <span class="panel-title">文稿</span>
+        <input id="search" placeholder="搜索文稿…" autocomplete="off">
+        <div class="panel-tools">
+          <button id="btn-undo" class="btn-icon" title="撤销 (⌘Z)" disabled>⤺</button>
+          <button id="btn-redo" class="btn-icon" title="重做 (⇧⌘Z)" disabled>⤻</button>
+          <button id="btn-del" class="btn-icon danger" title="删除所选 (Delete)">删除</button>
+          <button id="btn-restore" class="btn-icon" title="恢复所选">恢复</button>
+        </div>
+      </div>
+      <div id="transcript" tabindex="0"></div>
+      <div id="transcript-hint">单击选中 · Shift 连选 · 双击从该句播放 · Delete 删除 · ⌘Z 撤销</div>
+    </section>
+
+    <section id="player-panel">
+      <div id="video-wrap">
+        <video id="video" src="/media" playsinline></video>
+        <div id="preview-badge" class="hidden">预览成片</div>
+      </div>
+      <div id="controls">
+        <button id="btn-play" class="play-btn" title="播放/暂停 (空格)">▶</button>
+        <span id="time-display">00:00 / 00:00</span>
+        <label class="switch">
+          <input type="checkbox" id="preview-toggle" checked>
+          <span class="slider"></span>
+          <span class="switch-label">预览成片</span>
+        </label>
+      </div>
+    </section>
+  </main>
+
+  <footer id="bottom">
+    <div id="timeline">
+      <div id="blocks"></div>
+      <div id="playhead"></div>
+    </div>
+    <div id="statusbar">
+      <span id="stat-duration"></span>
+      <span id="stat-deleted"></span>
+      <span class="spacer"></span>
+      <span id="stat-model">Paraformer · 本地识别</span>
+    </div>
+  </footer>
+
+  <div id="overlay-transcribe" class="overlay hidden">
+    <div class="card">
+      <h2>识别文稿</h2>
+      <p class="card-desc">用 FunASR Paraformer 在本地把语音识别成文字，<br>之后删除文字即可剪辑视频。首次运行需下载模型（约 1GB）。</p>
+      <button id="btn-transcribe" class="btn primary big">开始识别</button>
+      <div id="asr-progress" class="progress-row hidden">
+        <div class="spinner"></div><span id="asr-msg">正在加载模型…</span>
+      </div>
+      <p id="asr-error" class="error hidden"></p>
+    </div>
+  </div>
+
+  <div id="overlay-export" class="overlay hidden">
+    <div class="card">
+      <h2>导出成片</h2>
+      <div class="field">
+        <label class="radio"><input type="radio" name="mode" value="precise" checked>
+          <span><b>按文稿精确剪</b><small>只移除被删句子对应的画面，其余原样保留</small></span></label>
+        <label class="radio"><input type="radio" name="mode" value="compact">
+          <span><b>紧凑模式</b><small>同时剪掉句子之间的长停顿，更适合口播</small></span></label>
+      </div>
+      <div class="field inline" id="gap-field" style="display:none">
+        <label>停顿超过 <input id="bridge-gap" type="number" value="1.0" step="0.1" min="0.2"> 秒时剪掉</label>
+      </div>
+      <div class="field">
+        <label class="check"><input type="checkbox" id="export-srt" checked> 同时导出字幕（.srt，时间码已对齐成片）</label>
+      </div>
+      <div id="export-progress" class="hidden">
+        <div class="bar"><div id="export-bar-fill"></div></div>
+        <span id="export-msg"></span>
+      </div>
+      <div id="export-done" class="hidden">
+        <p class="ok">✓ 导出完成</p>
+        <p id="export-path" class="path"></p>
+        <button id="btn-reveal" class="btn">在 Finder 中显示</button>
+      </div>
+      <p id="export-error" class="error hidden"></p>
+      <div class="card-actions">
+        <button id="btn-export-close" class="btn ghost">关闭</button>
+        <button id="btn-export-start" class="btn primary">开始导出</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>
